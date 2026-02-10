@@ -23,17 +23,13 @@ def main():
     async def run_tracker_loop():
         await tracker.loop_run(state.state.interval_minutes, stop_event)
 
-    async def run_bot():
-        app = build_app(settings.telegram_bot_token, state, settings.output_csv_path, tracker.run_once, stop_event)
-        await app.initialize()
-        await app.start()
-        await app.updater.start_polling()
-        await app.updater.idle()
-
     async def orchestrator():
-        loop_task = asyncio.create_task(run_tracker_loop())
-        bot_task = asyncio.create_task(run_bot())
-        await asyncio.wait([loop_task, bot_task], return_when=asyncio.FIRST_COMPLETED)
+        app = build_app(settings.telegram_bot_token, state, settings.output_csv_path, tracker.run_once, stop_event)
+        tracker_task = asyncio.create_task(run_tracker_loop())
+        bot_task = asyncio.create_task(app.run_polling())
+        done, pending = await asyncio.wait({tracker_task, bot_task}, return_when=asyncio.FIRST_EXCEPTION)
+        for task in pending:
+            task.cancel()
 
     asyncio.run(orchestrator())
 

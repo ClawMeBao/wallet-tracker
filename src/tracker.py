@@ -74,4 +74,7 @@ class Tracker:
                 await self.run_once()
             except Exception as e:
                 print(f"[tracker] error: {e}")
-            await asyncio.wait([stop_event.wait()], timeout=interval_minutes * 60)
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval_minutes * 60)
+            except asyncio.TimeoutError:
+                continue
