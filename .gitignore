@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+.env.local
+.env.*
+venv/
+.cache/
+.data/
+logs/
+*.log
+*.sqlite3
+credentials.json
+.sops.yaml
