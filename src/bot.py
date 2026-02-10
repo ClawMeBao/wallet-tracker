@@ -1,5 +1,6 @@
 import asyncio
 from io import BytesIO
+from pathlib import Path
 from typing import Callable
 
 import matplotlib.pyplot as plt
@@ -7,7 +8,6 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from .state import StateStore
-from .tracker import Tracker
 
 
 def format_summary(summary: dict) -> str:
@@ -22,11 +22,11 @@ def format_summary(summary: dict) -> str:
     return "\n".join(lines)
 
 
-def build_app(bot_token: str, state: StateStore, tracker: Tracker, run_once: Callable, stop_event: asyncio.Event) -> Application:
+def build_app(bot_token: str, state: StateStore, output_csv_path: str, run_once: Callable, stop_event: asyncio.Event) -> Application:
     app = Application.builder().token(bot_token).build()
 
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text("Bot sẵn sàng. Dùng /add, /remove, /list, /set_interval, /report, /chart")
+        await update.message.reply_text("Bot sẵn sàng. Dùng /add, /remove, /list, /set_interval, /report, /chart, /download")
 
     async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(context.args) < 2:
@@ -89,6 +89,13 @@ def build_app(bot_token: str, state: StateStore, tracker: Tracker, run_once: Cal
         await update.message.reply_photo(buf)
         plt.close(fig)
 
+    async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        path = Path(output_csv_path)
+        if not path.exists():
+            await update.message.reply_text("Chưa có file CSV")
+            return
+        await update.message.reply_document(document=path.open("rb"), filename=path.name)
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add))
     app.add_handler(CommandHandler("remove", remove))
@@ -96,4 +103,5 @@ def build_app(bot_token: str, state: StateStore, tracker: Tracker, run_once: Cal
     app.add_handler(CommandHandler("set_interval", set_interval))
     app.add_handler(CommandHandler("report", report))
     app.add_handler(CommandHandler("chart", chart))
+    app.add_handler(CommandHandler("download", download))
     return app

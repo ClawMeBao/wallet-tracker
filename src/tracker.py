@@ -1,21 +1,23 @@
 import asyncio
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
 
 from .ankr_client import AnkrClient
 from .pricing import fetch_prices_usd
-from .sheets import append_rows
 from .state import StateStore
 
 
 class Tracker:
-    def __init__(self, ankr_api_key: str, state: StateStore, sheet_id: str, creds_path: str):
+    def __init__(self, ankr_api_key: str, state: StateStore, output_csv_path: str):
         self.ankr = AnkrClient(ankr_api_key)
         self.state = state
-        self.sheet_id = sheet_id
-        self.creds_path = creds_path
+        self.output_csv_path = Path(output_csv_path)
+        self.output_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.output_csv_path.exists():
+            self.output_csv_path.write_text("timestamp,chain,address,token,amount,usd\n")
 
     async def run_once(self) -> Dict:
         wallets = self.state.state.wallets
@@ -54,7 +56,8 @@ class Tracker:
             ])
 
         if all_rows:
-            append_rows(self.creds_path, self.sheet_id, all_rows)
+            df_append = pd.DataFrame(all_rows, columns=["timestamp", "chain", "address", "token", "amount", "usd"])
+            df_append.to_csv(self.output_csv_path, mode="a", header=False, index=False)
 
         df = pd.DataFrame(all_rows, columns=["timestamp", "chain", "address", "token", "amount", "usd"])
         summary = {}
