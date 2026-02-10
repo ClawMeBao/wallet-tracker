@@ -26,13 +26,14 @@ def main():
     async def orchestrator():
         app = build_app(settings.telegram_bot_token, state, settings.output_csv_path, tracker.run_once, stop_event)
         tracker_task = asyncio.create_task(run_tracker_loop())
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling()
         try:
-            await app.initialize()
-            await app.start()
-            await app.updater.start_polling()
-            # idle loop
             while True:
-                await asyncio.sleep(1)
+                await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            pass
         finally:
             stop_event.set()
             if not tracker_task.done():
@@ -40,6 +41,7 @@ def main():
             await asyncio.gather(tracker_task, return_exceptions=True)
             await app.updater.stop()
             await app.stop()
+            await app.shutdown()
 
     asyncio.run(orchestrator())
 
