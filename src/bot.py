@@ -1,4 +1,3 @@
-import asyncio
 from io import BytesIO
 from pathlib import Path
 from typing import Callable
@@ -22,7 +21,9 @@ def format_summary(summary: dict) -> str:
     return "\n".join(lines)
 
 
-def build_app(bot_token: str, state: StateStore, output_csv_path: str, run_once: Callable, stop_event: asyncio.Event) -> Application:
+TRACKER_JOB_NAME = "tracker"
+
+def build_app(bot_token: str, state: StateStore, output_csv_path: str, run_once: Callable) -> Application:
     app = Application.builder().token(bot_token).build()
 
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -64,6 +65,10 @@ def build_app(bot_token: str, state: StateStore, output_csv_path: str, run_once:
         try:
             minutes = int(context.args[0])
             state.set_interval(minutes)
+            # reschedule tracker job
+            for job in context.job_queue.get_jobs_by_name(TRACKER_JOB_NAME):
+                job.schedule_removal()
+            context.job_queue.run_repeating(job_cb, interval=minutes * 60, first=0, name=TRACKER_JOB_NAME)
             await update.message.reply_text(f"Đặt chu kỳ {minutes} phút")
         except ValueError:
             await update.message.reply_text("Giá trị không hợp lệ")
@@ -96,6 +101,9 @@ def build_app(bot_token: str, state: StateStore, output_csv_path: str, run_once:
             return
         await update.message.reply_document(document=path.open("rb"), filename=path.name)
 
+    async def job_cb(context: ContextTypes.DEFAULT_TYPE):
+        await run_once()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add))
     app.add_handler(CommandHandler("remove", remove))
@@ -104,4 +112,7 @@ def build_app(bot_token: str, state: StateStore, output_csv_path: str, run_once:
     app.add_handler(CommandHandler("report", report))
     app.add_handler(CommandHandler("chart", chart))
     app.add_handler(CommandHandler("download", download))
+
+    # return app and job callback so main can schedule initial job
+    app.job_queue.run_repeating(job_cb, interval=state.state.interval_minutes * 60, first=0, name=TRACKER_JOB_NAME)
     return app

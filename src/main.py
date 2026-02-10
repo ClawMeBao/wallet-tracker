@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from .config import load_settings
@@ -18,23 +17,10 @@ def main():
     state.set_interval(settings.track_interval_minutes)
 
     tracker = Tracker(settings.ankr_api_key, state, settings.output_csv_path)
-    stop_event = asyncio.Event()
 
-    async def run_tracker_loop():
-        await tracker.loop_run(state.state.interval_minutes, stop_event)
-
-    async def orchestrator():
-        app = build_app(settings.telegram_bot_token, state, settings.output_csv_path, tracker.run_once, stop_event)
-        tracker_task = asyncio.create_task(run_tracker_loop())
-        try:
-            await app.run_polling(close_loop=False, drop_pending_updates=True)
-        finally:
-            stop_event.set()
-            if not tracker_task.done():
-                tracker_task.cancel()
-            await asyncio.gather(tracker_task, return_exceptions=True)
-
-    asyncio.run(orchestrator())
+    app = build_app(settings.telegram_bot_token, state, settings.output_csv_path, tracker.run_once)
+    # run_polling is blocking and manages its own loop
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
